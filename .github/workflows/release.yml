@@ -5,95 +5,149 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
         
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          
       - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          
-      - name: Upload localis.py
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: localis.py
-          asset_name: localis.py
-          asset_content_type: text/x-python
-          
-      - name: Upload install.sh
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: install.sh
-          asset_name: install.sh
-          asset_content_type: application/x-sh
-          
-      - name: Upload install.bat
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: install.bat
-          asset_name: install.bat
-          asset_content_type: application/x-batch
-          
-      - name: Upload requirements.txt
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: requirements.txt
-          asset_name: requirements.txt
-          asset_content_type: text/plain
-          
-      - name: Upload README.md
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: README.md
-          asset_name: README.md
-          asset_content_type: text/markdown
-
-  release-notification:
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify completion
         run: |
-          echo "✅ Release ${{ github.ref_name }} created successfully!"
-          echo "📦 Assets uploaded:"
-          echo "   - localis.py (source)"
-          echo "   - install.sh (Linux/macOS)"
-          echo "   - install.bat (Windows)"
-          echo "   - requirements.txt"
-          echo "   - README.md"
+          echo "Creating release ${{ github.ref_name }}"
+          
+          # Get upload URL
+          UPLOAD_URL=$(curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -d '{"tag_name":"${{ github.ref_name }}","name":"Release ${{ github.ref_name }}","draft":false,"prerelease":false}' \
+            | grep -o '"upload_url":"[^"]*' | cut -d'"' -f4)
+          
+          echo "Upload URL: $UPLOAD_URL"
+          echo "UPLOAD_URL=$UPLOAD_URL" >> $GITHUB_ENV
+      
+      - name: Upload localis.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: text/x-python" \
+            --data-binary @localis.py \
+            "${{ env.UPLOAD_URL }}?name=localis.py&label=localis.py" \
+            > /dev/null
+          echo "Uploaded localis.py"
+      
+      - name: Upload install.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/x-sh" \
+            --data-binary @install.sh \
+            "${{ env.UPLOAD_URL }}?name=install.sh&label=install.sh" \
+            > /dev/null
+          echo "Uploaded install.sh"
+      
+      - name: Upload install.bat
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/x-batch" \
+            --data-binary @install.bat \
+            "${{ env.UPLOAD_URL }}?name=install.bat&label=install.bat" \
+            > /dev/null
+          echo "Uploaded install.bat"
+      
+      - name: Upload requirements.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: text/plain" \
+            --data-binary @requirements.txt \
+            "${{ env.UPLOAD_URL }}?name=requirements.txt&label=requirements.txt" \
+            > /dev/null
+          echo "Uploaded requirements.txt"
+      
+      - name: Upload README.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: text/markdown" \
+            --data-binary @README.md \
+            "${{ env.UPLOAD_URL }}?name=README.md&label=README.md" \
+            > /dev/null
+          echo "Uploaded README.md"
+
+      - name: Upload INSTALL.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: text/markdown" \
+            --data-binary @INSTALL.md \
+            "${{ env.UPLOAD_URL }}?name=INSTALL.md&label=INSTALL.md" \
+            > /dev/null
+          echo "Uploaded INSTALL.md"
+
+      - name: Upload EXAMPLES.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f EXAMPLES.md ]; then
+            curl -s -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Content-Type: text/markdown" \
+              --data-binary @EXAMPLES.md \
+              "${{ env.UPLOAD_URL }}?name=EXAMPLES.md&label=EXAMPLES.md" \
+              > /dev/null
+            echo "Uploaded EXAMPLES.md"
+          fi
+
+      - name: Upload LICENSE
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: text/plain" \
+            --data-binary @LICENSE \
+            "${{ env.UPLOAD_URL }}?name=LICENSE&label=LICENSE" \
+            > /dev/null
+          echo "Uploaded LICENSE"
+
+      - name: Done
+        run: |
+          echo ""
+          echo "============================================"
+          echo "Release v${{ github.ref_name }} created!"
+          echo "============================================"
+          echo ""
+          echo "Download from:"
+          echo "https://github.com/${{ github.repository }}/releases/tag/v${{ github.ref_name }}"
